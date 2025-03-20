@@ -52,19 +52,19 @@ const preloadConfig = {
 
 const rendererConfig = {
   mode: process.env.NODE_ENV === "production" ? "production" : "development",
-  entry: "./src/renderer/index.ts",
+  entry: "./src/renderer/index.tsx", // Changed back to .tsx to reflect JSX usage
   target: "electron-renderer",
   output: {
     filename: "renderer.js",
     path: path.resolve(__dirname, "dist"),
   },
   resolve: {
-    extensions: [".ts", ".js"],
+    extensions: [".tsx", ".ts", ".js"], // Support for .tsx files
   },
   module: {
     rules: [
       {
-        test: /\.ts$/,
+        test: /\.(ts|tsx)$/, // Support for .tsx files
         include: /src/,
         use: [{ loader: "ts-loader" }],
       },

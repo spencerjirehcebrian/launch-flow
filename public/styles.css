@@ -42,22 +42,43 @@ h4 {
   margin-bottom: 0.5rem;
 }
 
-.container {
+/* React App Container */
+#root {
   display: flex;
+  flex-direction: column;
   flex: 1;
   height: calc(100vh - 60px);
-  overflow: hidden;
 }
 
-/* Sidebar Styles */
+/* Container styles - ensures proper flex layout */
+.container {
+  display: flex;
+  flex-direction: row; /* Ensure horizontal layout */
+  flex: 1;
+  height: calc(100vh - 60px); /* Adjust based on your header height */
+  overflow: hidden;
+}
+/* Loading State */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  font-size: 1.2rem;
+  color: #2c3e50;
+}
+
 .sidebar {
-  width: 350px;
+  width: 350px; /* Fixed width for sidebar */
+  min-width: 300px; /* Ensure minimum width */
   background-color: #fff;
   border-right: 1px solid #ddd;
   padding: 1rem;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  height: 100%; /* Full height */
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 .section {
@@ -73,6 +94,10 @@ h4 {
 
 .directory-selector input {
   flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
 }
 
 .directory-selector button {
@@ -138,6 +163,12 @@ h4 {
   font-weight: 500;
   transition: all 0.2s;
   flex: 1;
+  background-color: #ecf0f1;
+  color: #333;
+}
+
+.action-btn:hover {
+  background-color: #dfe6e9;
 }
 
 .action-btn.primary {
@@ -170,6 +201,12 @@ h4 {
 .action-btn.small {
   padding: 4px 8px;
   font-size: 12px;
+}
+
+/* Disabled Buttons */
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Main Content Styles */
@@ -270,6 +307,16 @@ h4 {
 .log-tab .close-tab:hover {
   background-color: rgba(0, 0, 0, 0.2);
   color: #333;
+}
+
+/* Active tab with white close button */
+.log-tab.active .close-tab {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.log-tab.active .close-tab:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Log actions */
@@ -414,7 +461,92 @@ h4 {
   }
 }
 
-/* Responsive design */
+/* Error Notifications */
+.error-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 300px;
+  max-width: 80%;
+  z-index: 1000;
+}
+
+.error-message {
+  background-color: #e74c3c;
+  color: white;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.error-message button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Tooltips */
+.tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip .tooltip-text {
+  visibility: hidden;
+  width: 120px;
+  background-color: #2c3e50;
+  color: white;
+  text-align: center;
+  border-radius: 4px;
+  padding: 5px;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -60px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 0.8rem;
+}
+
+.tooltip:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Make sure media queries don't hide sidebar at desktop resolutions */
+@media (min-width: 769px) {
+  .container {
+    flex-direction: row;
+  }
+
+  .sidebar {
+    width: 350px;
+    height: 100%;
+    max-height: 100%;
+  }
+}
+
+/* Only apply column layout on mobile */
 @media (max-width: 768px) {
   .container {
     flex-direction: column;
@@ -424,9 +556,5 @@ h4 {
     width: 100%;
     height: auto;
     max-height: 50%;
-  }
-
-  .main-content {
-    height: 50%;
   }
 }
