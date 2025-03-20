@@ -1,0 +1,90 @@
+{
+  "name": "deployment-app",
+  "version": "1.0.0",
+  "description": "App for deploying frontend and backend components",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "webpack --config webpack.config.js",
+    "watch": "webpack --config webpack.config.js --watch",
+    "lint": "eslint -c .eslintrc.js --ext .ts ./src",
+    "start": "npm run build && electron .",
+    "dev": "NODE_ENV=development concurrently \"npm run watch\" \"electron .\"",
+    "pack": "NODE_ENV=production npm run build && electron-builder --dir",
+    "dist": "NODE_ENV=production npm run build && electron-builder",
+    "dist:mac": "NODE_ENV=production npm run build && electron-builder --mac",
+    "dist:win": "NODE_ENV=production npm run build && electron-builder --win",
+    "dist:linux": "NODE_ENV=production npm run build && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps",
+    "publish": "NODE_ENV=production npm run build && electron-builder -p always"
+  },
+  "bin": {
+    "deployment-app": "./bin/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "your-repo-url"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/electron": "^1.6.10",
+    "@types/node": "^20.11.16",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "concurrently": "^8.2.2",
+    "electron": "^29.1.0",
+    "electron-builder": "^24.8.1",
+    "eslint": "^8.56.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "electron-log": "^5.0.1"
+  },
+  "build": {
+    "appId": "com.yourcompany.deployment-app",
+    "productName": "Deployment App",
+    "files": [
+      "dist/**/*",
+      "public/**/*",
+      "assets/**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!{.eslintrc.json,.eslintrc.js}"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    }
+  }
+}
