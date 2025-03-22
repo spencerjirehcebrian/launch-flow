@@ -23,10 +23,15 @@ const LogContent: React.FC<LogContentProps> = ({ activeCommand }) => {
   // If no active command, show welcome message
   if (!activeCommand) {
     return (
-      <div className="log-display" ref={logDisplayRef}>
-        <div className="welcome-message">
-          <h3>Deployment Logs</h3>
-          <p>
+      <div
+        className="flex-1 p-4 overflow-y-auto font-mono text-sm leading-relaxed whitespace-pre-wrap bg-secondary dark:bg-darkAccent text-gray-800 dark:text-gray-100 rounded-bubble shadow-bubble dark:shadow-bubble-dark"
+        ref={logDisplayRef}
+      >
+        <div className="text-center p-8 text-gray-400">
+          <h3 className="mb-4 text-gray-800 dark:text-gray-100 font-medium">
+            Deployment Logs
+          </h3>
+          <p className="text-gray-600 dark:text-gray-300">
             Select at least one flow and one environment, then click "Run
             Selected Flows" to begin.
           </p>
@@ -40,7 +45,7 @@ const LogContent: React.FC<LogContentProps> = ({ activeCommand }) => {
 
   return (
     <div
-      className="log-display"
+      className="flex-1 p-4 overflow-y-auto font-mono text-sm leading-relaxed whitespace-pre-wrap bg-secondary dark:bg-darkAccent text-gray-800 dark:text-gray-100 rounded-bubble shadow-bubble dark:shadow-bubble-dark"
       ref={logDisplayRef}
       dangerouslySetInnerHTML={{ __html: formattedLogs }}
     ></div>

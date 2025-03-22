@@ -1,8 +1,10 @@
 import React from "react";
+import Button from "../UI/Buttons";
 
 interface ActionButtonsProps {
   onRunFlows: () => Promise<void>;
   onStopAllCommands: () => Promise<boolean>;
+  onClearLogs: () => void;
 }
 
 /**
@@ -11,16 +13,20 @@ interface ActionButtonsProps {
 const ActionButtons: React.FC<ActionButtonsProps> = ({
   onRunFlows,
   onStopAllCommands,
+  onClearLogs,
 }) => {
   return (
-    <>
-      <button className="action-btn primary" onClick={onRunFlows}>
+    <div className="flex flex-col gap-3">
+      <Button variant="primary" onClick={onRunFlows}>
         Run Selected Flows
-      </button>
-      <button className="action-btn danger" onClick={onStopAllCommands}>
+      </Button>
+      <Button variant="danger" onClick={onStopAllCommands}>
         Stop All
-      </button>
-    </>
+      </Button>
+      <Button variant="primary" onClick={onClearLogs}>
+        Clear All Logs
+      </Button>
+    </div>
   );
 };
 

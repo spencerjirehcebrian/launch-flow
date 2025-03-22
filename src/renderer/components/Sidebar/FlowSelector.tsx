@@ -1,51 +1,36 @@
 import React from "react";
-import { Flow, FLOWS } from "../../../types";
+import { Flow, FlowConfig } from "../../../types";
+import ToggleButtonCheckbox from "../UI/ToggleButtonCheckbox"; // Import the new component
 
 interface FlowSelectorProps {
+  availableFlows: Record<Flow, FlowConfig>;
   selectedFlows: Flow[];
   onUpdateFlows: (flows: Flow[]) => Promise<void>;
 }
 
-/**
- * Component for selecting deployment flows
- */
 const FlowSelector: React.FC<FlowSelectorProps> = ({
+  availableFlows,
   selectedFlows,
   onUpdateFlows,
 }) => {
-  // Handle checkbox change
-  const handleFlowChange = (flow: Flow, checked: boolean) => {
-    let updatedFlows: Flow[];
-
-    if (checked) {
-      // Add the flow if checked
-      updatedFlows = [...selectedFlows, flow];
-    } else {
-      // Remove the flow if unchecked
-      updatedFlows = selectedFlows.filter((f) => f !== flow);
-    }
-
+  const handleFlowChange = (flow: Flow) => {
+    const updatedFlows = selectedFlows.includes(flow)
+      ? selectedFlows.filter((f) => f !== flow)
+      : [...selectedFlows, flow];
     onUpdateFlows(updatedFlows);
   };
 
   return (
-    <div className="flow-selector">
-      {Object.entries(FLOWS).map(([flowKey, flowConfig]) => {
-        const flow = flowKey as Flow;
-        return (
-          <div className="checkbox-item" key={flow}>
-            <input
-              type="checkbox"
-              id={`flow-${flow}`}
-              className="flow-checkbox"
-              data-flow={flow}
-              checked={selectedFlows.includes(flow)}
-              onChange={(e) => handleFlowChange(flow, e.target.checked)}
-            />
-            <label htmlFor={`flow-${flow}`}>{flowConfig.name}</label>
-          </div>
-        );
-      })}
+    <div className="flex flex-col gap-2.5">
+      {Object.entries(availableFlows).map(([flow, config]) => (
+        <ToggleButtonCheckbox
+          key={flow}
+          id={`flow-${flow}`}
+          label={config.name}
+          checked={selectedFlows.includes(flow)}
+          onChange={() => handleFlowChange(flow as Flow)}
+        />
+      ))}
     </div>
   );
 };

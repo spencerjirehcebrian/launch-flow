@@ -8,34 +8,24 @@ import {
   DeploymentConfig,
   Environment,
   Flow,
-  FLOWS,
+  Project,
 } from "./types";
 
-// Define interfaces for your app's types
-interface AppWindow extends BrowserWindow {
-  // Add any custom properties you need
-}
-
-let mainWindow: AppWindow | null = null;
-// Store all running processes
+let mainWindow: BrowserWindow | null = null;
 const runningProcesses: Map<string, ChildProcess> = new Map();
-// Store command results with logs
 const commandResults: Map<string, CommandResult> = new Map();
-// Default config path
 const configPath = path.join(app.getPath("userData"), "deployment-config.json");
 
-// Default configuration
 const defaultConfig: DeploymentConfig = {
-  rootDirectory: "",
-  selectedEnvironments: ["dev"],
+  projects: [],
+  selectedProject: null,
+  selectedEnvironments: [],
   selectedFlows: [],
 };
 
-// Current configuration
 let currentConfig: DeploymentConfig = { ...defaultConfig };
 
 function createWindow(): void {
-  // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -44,174 +34,210 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
     },
-  }) as AppWindow;
+  });
 
-  // Load the index.html of the app.
   mainWindow.loadFile(path.join(__dirname, "../public/index.html"));
 
-  // Open the DevTools in development mode
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools();
   }
 
-  // Log when the window is closed
   mainWindow.on("closed", () => {
     log.info("Main window closed");
-    // Stop all running processes when the window is closed
     stopAllProcesses();
     mainWindow = null;
   });
 }
 
-// Load configuration from file or create default
 function loadConfig(): DeploymentConfig {
+  const rootConfigPath = path.join(__dirname, "../deployment-config.json");
+  const userConfigPath = path.join(
+    app.getPath("userData"),
+    "deployment-config.json"
+  );
+
   try {
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, "utf8");
+    if (fs.existsSync(rootConfigPath)) {
+      const configData = fs.readFileSync(rootConfigPath, "utf8");
       const loadedConfig = JSON.parse(configData) as DeploymentConfig;
-      log.info("Configuration loaded successfully");
-      return { ...defaultConfig, ...loadedConfig };
+      log.info("Loaded config from project root:", rootConfigPath);
+      currentConfig = { ...defaultConfig, ...loadedConfig };
+      return currentConfig;
     }
-  } catch (error) {
+    if (fs.existsSync(userConfigPath)) {
+      const configData = fs.readFileSync(userConfigPath, "utf8");
+      const loadedConfig = JSON.parse(configData) as DeploymentConfig;
+      log.info("Loaded config from user data:", userConfigPath);
+      currentConfig = { ...defaultConfig, ...loadedConfig };
+      return currentConfig;
+    }
+    log.info("No config found, using default config");
+    currentConfig = { ...defaultConfig };
+  } catch (error: any) {
+    sendErrorToRenderer(`Error loading configuration: ${error.message}`);
     log.error("Error loading configuration:", error);
   }
-
-  // Return default config if loading fails
-  return { ...defaultConfig };
+  return { ...currentConfig };
 }
 
-// Save configuration to file
 function saveConfig(config: DeploymentConfig): void {
   try {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf8");
-    log.info("Configuration saved successfully");
-  } catch (error) {
+    // Log config being saved for debugging
+    log.info("Saving configuration:", JSON.stringify(config, null, 2));
+
+    const userConfigPath = path.join(
+      app.getPath("userData"),
+      "deployment-config.json"
+    );
+
+    // Create a string representation with pretty formatting
+    const configJson = JSON.stringify(config, null, 2);
+
+    // Write to file
+    fs.writeFileSync(userConfigPath, configJson, "utf8");
+
+    // Update current config reference
+    currentConfig = { ...config };
+
+    log.info("Configuration saved successfully to:", userConfigPath);
+
+    // Notify renderer process about the config update
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send("configUpdated", currentConfig);
+    }
+  } catch (error: any) {
+    sendErrorToRenderer(`Error saving configuration: ${error.message}`);
     log.error("Error saving configuration:", error);
+    throw error; // Rethrow to allow proper error handling
   }
 }
 
-// Generate a unique ID for command execution
 function generateCommandId(flow: Flow, environment: Environment): string {
   return `${flow}-${environment}-${Date.now()}`;
 }
 
-// Run a flow with the specified environment
 function runFlow(flow: Flow, environment: Environment): string {
-  const rootDirectory = currentConfig.rootDirectory;
-
-  if (!rootDirectory) {
-    log.error("No directory specified for command execution");
+  const selectedProject = currentConfig.projects.find(
+    (p) => p.name === currentConfig.selectedProject
+  );
+  if (!selectedProject) {
+    const errorMessage = "No project selected";
+    sendErrorToRenderer(errorMessage);
+    log.error(errorMessage);
     return "";
   }
 
-  const flowConfig = FLOWS[flow];
-
+  const flowConfig = selectedProject.flows[flow];
   if (!flowConfig) {
-    log.error(`Unknown flow: ${flow}`);
+    const errorMessage = `Unknown flow: ${flow}`;
+    sendErrorToRenderer(errorMessage);
+    log.error(errorMessage);
     return "";
   }
 
-  // Build the full path to the flow directory
-  const flowDirectory = path.join(rootDirectory, flowConfig.path);
+  const commandSteps = flowConfig.commands[environment];
+  if (!commandSteps || Object.keys(commandSteps).length === 0) {
+    const errorMessage = `No command steps defined for ${environment} in flow ${flow}`;
+    sendErrorToRenderer(errorMessage);
+    log.error(errorMessage);
+    return "";
+  }
 
-  // Build the command with the environment
-  const command = `${flowConfig.command}:${environment}`;
-
-  // Generate a unique ID for this command execution
+  // Use the project's root directory for execution
+  const execDirectory = selectedProject.path;
   const execId = generateCommandId(flow, environment);
 
-  // Create command result object
+  // Create a script with all the steps
+  const scriptLines = Object.entries(commandSteps)
+    .sort(([stepA], [stepB]) => {
+      // Sort by step number
+      return parseInt(stepA) - parseInt(stepB);
+    })
+    .map(([step, cmd]) => cmd);
+
+  const fullScript = scriptLines.join("\n");
+
   const commandResult: CommandResult = {
     id: execId,
-    directory: flowDirectory,
-    flow: flow,
-    environment: environment,
+    directory: execDirectory,
+    flow,
+    environment,
     status: "running",
-    logs: `Starting flow: ${flowConfig.name} with command "${command}" for ${environment} environment\n`,
+    logs: `Starting flow: ${flowConfig.name} with steps for ${environment} environment\n`,
     startTime: Date.now(),
   };
 
-  // Store command result
   commandResults.set(execId, commandResult);
-
-  // Send initial status to renderer
-  if (mainWindow) {
-    mainWindow.webContents.send("commandStatus", commandResult);
-  }
+  mainWindow?.webContents.send("commandStatus", commandResult);
 
   try {
-    // Environment variables for the command
-    const env = { ...process.env, DEPLOY_ENV: environment };
-
-    // Ensure the directory exists
-    if (!fs.existsSync(flowDirectory)) {
-      throw new Error(`Directory not found: ${flowDirectory}`);
+    if (!fs.existsSync(execDirectory)) {
+      const errorMessage = `Project directory not found: ${execDirectory}`;
+      sendErrorToRenderer(errorMessage);
+      throw new Error(errorMessage);
     }
 
-    // Spawn the process to capture output in real-time
-    const childProcess = spawn(command, [], {
-      cwd: flowDirectory,
+    // Create a temporary script file to execute the steps
+    const tempScriptPath = path.join(app.getPath("temp"), `flow-${execId}.sh`);
+    fs.writeFileSync(tempScriptPath, fullScript, { mode: 0o755 });
+
+    appendCommandOutput(execId, `Executing script:\n${fullScript}\n\n`);
+
+    const childProcess = spawn(tempScriptPath, [], {
+      cwd: execDirectory,
       shell: true,
-      env,
+      env: { ...process.env, DEPLOY_ENV: environment },
     });
 
-    // Store the process
     runningProcesses.set(execId, childProcess);
 
-    // Handle output
     childProcess.stdout.on("data", (data) => {
-      const output = data.toString();
-      appendCommandOutput(execId, output);
+      appendCommandOutput(execId, data.toString());
     });
 
     childProcess.stderr.on("data", (data) => {
-      const output = data.toString();
-      appendCommandOutput(execId, output);
+      appendCommandOutput(execId, data.toString());
     });
 
-    // Handle process completion
     childProcess.on("close", (code) => {
       const status = code === 0 ? "success" : "error";
       updateCommandStatus(execId, status);
       runningProcesses.delete(execId);
+
+      // Clean up the temporary script
+      try {
+        fs.unlinkSync(tempScriptPath);
+      } catch (err) {
+        log.error(`Failed to delete temporary script: ${err}`);
+      }
 
       const result = commandResults.get(execId);
       if (result) {
         result.endTime = Date.now();
         commandResults.set(execId, result);
       }
-
-      log.info(`Flow completed: ${flow} for ${environment}, status: ${status}`);
     });
 
     log.info(`Flow started: ${flow} for ${environment}`);
     return execId;
-  } catch (error) {
+  } catch (error: any) {
     log.error(`Error running flow: ${error}`);
     updateCommandStatus(execId, "error");
     appendCommandOutput(execId, `Error starting flow: ${error}`);
+    sendErrorToRenderer(`Error starting flow: ${error.message}`);
     return execId;
   }
 }
 
-// Append output to command logs
 function appendCommandOutput(commandId: string, output: string): void {
   const result = commandResults.get(commandId);
   if (result) {
     result.logs += output;
     commandResults.set(commandId, result);
-
-    // Send the updated output to renderer
-    if (mainWindow) {
-      mainWindow.webContents.send("commandOutput", {
-        id: commandId,
-        output,
-      });
-    }
+    mainWindow?.webContents.send("commandOutput", { id: commandId, output });
   }
 }
 
-// Update command status
 function updateCommandStatus(
   commandId: string,
   status: "running" | "success" | "error" | "stopped"
@@ -220,126 +246,141 @@ function updateCommandStatus(
   if (result) {
     result.status = status;
     commandResults.set(commandId, result);
-
-    // Send the updated status to renderer
-    if (mainWindow) {
-      mainWindow.webContents.send("commandStatus", result);
-    }
+    mainWindow?.webContents.send("commandStatus", result);
   }
 }
 
-// Stop a running command
 function stopCommand(commandId: string): void {
   const process = runningProcesses.get(commandId);
   if (process) {
     process.kill();
     runningProcesses.delete(commandId);
     updateCommandStatus(commandId, "stopped");
-    log.info(`Command stopped: ${commandId}`);
   }
 }
 
-// Stop all running processes
 function stopAllProcesses(): void {
   for (const [commandId, process] of runningProcesses.entries()) {
     process.kill();
     updateCommandStatus(commandId, "stopped");
   }
   runningProcesses.clear();
-  log.info("All processes stopped");
 }
 
-// Select a directory via dialog
-async function selectRootDirectory(): Promise<string | null> {
-  if (!mainWindow) return null;
-
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ["openDirectory"],
-  });
-
-  if (result.canceled || result.filePaths.length === 0) {
+async function selectDirectory(): Promise<string | null> {
+  if (!mainWindow) {
+    log.warn("Cannot select directory: Main window is null");
     return null;
   }
 
-  const selectedDirectory = result.filePaths[0];
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory"],
+      title: "Select Project Root Directory",
+    });
 
-  // Update configuration with the new root directory
-  currentConfig.rootDirectory = selectedDirectory;
-  saveConfig(currentConfig);
+    if (result.canceled || !result.filePaths.length) {
+      log.info("Directory selection canceled");
+      return null;
+    }
 
-  return selectedDirectory;
+    const selectedPath = result.filePaths[0];
+    log.info("Directory selected:", selectedPath);
+    return selectedPath;
+  } catch (error: any) {
+    log.error("Error during directory selection:", error);
+    sendErrorToRenderer(`Error selecting directory: ${error.message}`);
+    return null;
+  }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-app.whenReady().then(() => {
-  log.info("App is ready");
+function sendErrorToRenderer(message: string) {
+  log.error(message);
+  console.log("Sending error to renderer:", message);
+  mainWindow?.webContents.send("error", message);
+}
 
-  // Load existing configuration
-  currentConfig = loadConfig();
-
-  // Register IPC handlers
-  registerIpcHandlers();
-
-  // Create the main window
-  createWindow();
-
-  app.on("activate", () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+function registerIpcHandlers(): void {
+  ipcMain.handle("runFlow", async (_, args) => {
+    try {
+      const { flow, environment } = args;
+      return runFlow(flow, environment);
+    } catch (error: any) {
+      sendErrorToRenderer(`Error running flow: ${error.message}`);
+      return null;
     }
   });
-});
 
-// Register all IPC handlers
-function registerIpcHandlers(): void {
-  // Run a flow
-  ipcMain.handle("runFlow", async (_, args) => {
-    const { flow, environment } = args;
-    return runFlow(flow, environment);
-  });
-
-  // Stop a command
   ipcMain.handle("stopCommand", async (_, commandId) => {
-    stopCommand(commandId);
-    return true;
+    try {
+      stopCommand(commandId);
+      return true;
+    } catch (error: any) {
+      sendErrorToRenderer(`Error stopping command: ${error.message}`);
+      return false;
+    }
   });
 
-  // Stop all commands
   ipcMain.handle("stopAllCommands", async () => {
-    stopAllProcesses();
-    return true;
+    try {
+      stopAllProcesses();
+      return true;
+    } catch (error: any) {
+      sendErrorToRenderer(`Error stopping all commands: ${error.message}`);
+      return false;
+    }
   });
 
-  // Select a root directory
   ipcMain.handle("selectDirectory", async () => {
-    return await selectRootDirectory();
+    try {
+      return await selectDirectory();
+    } catch (error: any) {
+      sendErrorToRenderer(`Error selecting directory: ${error.message}`);
+      return null;
+    }
   });
 
-  // Save configuration
-  ipcMain.handle("saveConfig", async (_, config) => {
-    currentConfig = config;
-    saveConfig(config);
-    return true;
+  ipcMain.handle("saveConfig", async (_, config: DeploymentConfig) => {
+    try {
+      saveConfig(config);
+      return true;
+    } catch (error: any) {
+      sendErrorToRenderer(`Error saving configuration: ${error.message}`);
+      return false;
+    }
   });
 
-  // Load configuration
   ipcMain.handle("loadConfig", async () => {
-    return currentConfig;
+    try {
+      return currentConfig;
+    } catch (error: any) {
+      sendErrorToRenderer(`Error loading configuration: ${error.message}`);
+      return null;
+    }
   });
 }
 
-// Quit when all windows are closed, except on macOS.
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    log.info("All windows closed, quitting app");
-    app.quit();
+app.whenReady().then(() => {
+  log.info("App is ready");
+  currentConfig = loadConfig();
+  registerIpcHandlers();
+  createWindow();
+
+  if (mainWindow) {
+    mainWindow.webContents.on("did-finish-load", () => {
+      mainWindow?.webContents.send("configUpdated", currentConfig);
+    });
   }
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
 
-// Handle app will quit
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
+
 app.on("will-quit", () => {
   stopAllProcesses();
 });

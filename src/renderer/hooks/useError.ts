@@ -1,31 +1,37 @@
 import { useState, useCallback } from "react";
 import { useIpc } from "./useIpc";
 
-/**
- * Hook for handling error messages from the main process
- */
+interface ErrorInfo {
+  message: string;
+  timestamp: number;
+  source?: string;
+}
+
 export function useError() {
   const { useIpcListener } = useIpc();
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<ErrorInfo[]>([]);
 
-  // Add an error message
-  const addError = useCallback((message: string) => {
-    setErrors((prev) => [...prev, message]);
+  const addError = useCallback((message: string, source?: string) => {
+    const errorInfo: ErrorInfo = {
+      message,
+      timestamp: Date.now(),
+      source,
+    };
+    console.error("Error:", errorInfo);
+    setErrors((prev) => [...prev, errorInfo]);
   }, []);
 
-  // Clear all error messages
   const clearErrors = useCallback(() => {
     setErrors([]);
   }, []);
 
-  // Clear a specific error message
   const clearError = useCallback((index: number) => {
     setErrors((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Listen for error messages from the main process
-  useIpcListener("error", (error: string) => {
-    addError(error);
+  useIpcListener("error", (message: string) => {
+    console.log("Received error from main:", message); // ADD THIS LINE
+    addError(message, "Main Process");
   });
 
   return {

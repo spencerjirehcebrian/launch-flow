@@ -1,4 +1,5 @@
 import React from "react";
+import Button from "../UI/Buttons";
 
 interface DirectorySelectorProps {
   directory: string;
@@ -13,17 +14,17 @@ const DirectorySelector: React.FC<DirectorySelectorProps> = ({
   onSelectDirectory,
 }) => {
   return (
-    <div className="directory-selector">
+    <div className="flex gap-2 animate-fadeIn">
       <input
         type="text"
-        className="form-control"
+        className="flex-1 p-3 bg-secondary dark:bg-darkAccent border border-pink-200 dark:border-darkAccent rounded-bubble text-sm text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-primary focus:border-primary dark:focus:ring-darkPrimary dark:focus:border-darkPrimary outline-none transition-all duration-300"
         value={directory}
         placeholder="Select a directory..."
         readOnly
       />
-      <button className="action-btn" onClick={onSelectDirectory}>
+      <Button variant="primary" onClick={onSelectDirectory}>
         Browse
-      </button>
+      </Button>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 const path = require("path");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 const mainConfig = {
   mode: process.env.NODE_ENV === "production" ? "production" : "development",
@@ -52,24 +53,33 @@ const preloadConfig = {
 
 const rendererConfig = {
   mode: process.env.NODE_ENV === "production" ? "production" : "development",
-  entry: "./src/renderer/index.tsx", // Changed back to .tsx to reflect JSX usage
+  entry: ["./src/styles/tailwind.css", "./src/renderer/index.tsx"],
   target: "electron-renderer",
   output: {
     filename: "renderer.js",
     path: path.resolve(__dirname, "dist"),
   },
   resolve: {
-    extensions: [".tsx", ".ts", ".js"], // Support for .tsx files
+    extensions: [".tsx", ".ts", ".js", ".css"],
   },
   module: {
     rules: [
       {
-        test: /\.(ts|tsx)$/, // Support for .tsx files
+        test: /\.(ts|tsx)$/,
         include: /src/,
         use: [{ loader: "ts-loader" }],
       },
+      {
+        test: /\.css$/,
+        use: [MiniCssExtractPlugin.loader, "css-loader", "postcss-loader"],
+      },
     ],
   },
+  plugins: [
+    new MiniCssExtractPlugin({
+      filename: "styles.css",
+    }),
+  ],
   devtool: "source-map",
 };
 
