@@ -1,73 +1,108 @@
 // src/renderer/components/Sidebar/Sidebar.tsx
-import React, { useState } from "react";
-import { Environment, Flow, FlowConfig, Project } from "../../../types";
+import React, { useState, memo, useCallback } from "react";
 import DirectorySelector from "./DirectorySelector";
 import EnvironmentSelector from "./EnvironmentSelector";
 import FlowSelector from "./FlowSelector";
 import ActionButtons from "./ActionButtons";
 import ThemeToggle from "./ThemeToggle";
 import ProjectModal from "./ProjectModal";
+import { useConfigStore, useCommandStore } from "../../stores";
 
-interface SidebarProps {
-  projects: Project[];
-  selectedProject: string | null;
-  selectedEnvironments: Environment[];
-  selectedFlows: Flow[];
-  onSelectProject: (projectName: string) => Promise<void>;
-  onSelectDirectory: (projectName: string) => Promise<string | null>;
-  onUpdateEnvironments: (environments: Environment[]) => Promise<void>;
-  onUpdateFlows: (flows: Flow[]) => Promise<void>;
-  onRunFlows: () => Promise<void>;
-  onStopAllCommands: () => Promise<boolean>;
-  onClearLogs: () => void;
-}
+/**
+ * Main sidebar component - now connected directly to stores
+ * and optimized to prevent unnecessary re-renders
+ */
+const Sidebar: React.FC = memo(() => {
+  // Use selective subscriptions to prevent whole component re-renders
+  const projects = useConfigStore((state) => state.config.projects);
+  const selectedProject = useConfigStore(
+    (state) => state.config.selectedProject
+  );
+  const selectedEnvironments = useConfigStore(
+    (state) => state.config.selectedEnvironments
+  );
+  const selectedFlows = useConfigStore((state) => state.config.selectedFlows);
 
-const Sidebar: React.FC<SidebarProps> = ({
-  projects,
-  selectedProject,
-  selectedEnvironments,
-  selectedFlows,
-  onSelectProject,
-  onSelectDirectory,
-  onUpdateEnvironments,
-  onUpdateFlows,
-  onRunFlows,
-  onStopAllCommands,
-  onClearLogs,
-}) => {
+  // Get actions but don't subscribe to their changes
+  const {
+    selectRootDirectory,
+    updateSelectedEnvironments,
+    updateSelectedFlows,
+    selectProject,
+  } = useConfigStore();
+
+  const { runSelectedFlows, stopAllCommands, clearCommandResults } =
+    useCommandStore();
+
   const currentProject = projects.find((p) => p.name === selectedProject);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 
-  const handleOpenProjectModal = () => {
+  // Memoize handlers to prevent recreation on each render
+  const handleOpenProjectModal = useCallback(() => {
     setIsProjectModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseProjectModal = () => {
+  const handleCloseProjectModal = useCallback(() => {
     setIsProjectModalOpen(false);
-  };
+  }, []);
 
-  const handleSelectDirectory = async () => {
+  const handleSelectDirectory = useCallback(async () => {
     if (!currentProject || !selectedProject) {
       console.error("No project selected");
       return null;
     }
 
     try {
-      const newPath = await onSelectDirectory(selectedProject);
-      if (newPath) {
-        console.log(
-          `Directory for project ${selectedProject} updated to: ${newPath}`
-        );
-      }
+      const newPath = await selectRootDirectory(selectedProject);
       return newPath;
     } catch (error) {
       console.error("Error selecting directory:", error);
       return null;
     }
-  };
+  }, [currentProject, selectedProject, selectRootDirectory]);
+
+  const handleSelectProject = useCallback(
+    async (projectName: string) => {
+      await selectProject(projectName);
+      handleCloseProjectModal();
+    },
+    [selectProject, handleCloseProjectModal]
+  );
+
+  const handleRunFlows = useCallback(async () => {
+    if (!currentProject) return;
+
+    await runSelectedFlows(
+      selectedFlows,
+      selectedEnvironments,
+      currentProject.path
+    );
+  }, [currentProject, selectedEnvironments, selectedFlows, runSelectedFlows]);
+
+  // If there's no project data yet, render minimal content
+  if (projects.length === 0) {
+    return (
+      <div className="w-[350px] min-w-[300px] bg-secondary dark:bg-darkCard rounded-bubble border border-pink-100 dark:border-darkAccent shadow-bubble dark:shadow-bubble-dark m-4 p-6 flex flex-col overflow-y-auto h-[calc(100%-2rem)] flex-shrink-0 transition-all duration-300 animate-slideInLeft">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent dark:from-darkPrimary dark:to-darkSecondary">
+            Projects
+          </h3>
+          <ThemeToggle />
+        </div>
+        <div className="text-center p-8 text-gray-400">
+          <h3 className="mb-4 text-gray-800 dark:text-gray-100 font-medium">
+            No Projects Available
+          </h3>
+          <p className="text-gray-600 dark:text-gray-300">
+            Please configure projects in your deployment-config.json file.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-[350px] min-w-[300px] bg-secondary dark:bg-darkCard rounded-bubble border border-pink-100 dark:border-darkAccent shadow-bubble dark:shadow-bubble-dark m-4 p-6 flex flex-col overflow-y-auto h-[calc(100%-2rem)] flex-shrink-0 transition-all duration-300 animate-slideInLeft">
+    <div className="w-[350px] min-w-[300px] bg-secondary dark:bg-darkCard rounded-bubble border border-pink-100 dark:border-darkAccent shadow-bubble dark:shadow-bubble-dark m-4 p-6 flex flex-col overflow-y-auto h-[calc(100%-2rem)] flex-shrink-0 transition-all duration-300">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent dark:from-darkPrimary dark:to-darkSecondary">
           Projects
@@ -89,7 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         onClose={handleCloseProjectModal}
         projects={projects}
         selectedProject={selectedProject}
-        onSelectProject={onSelectProject}
+        onSelectProject={handleSelectProject}
       />
 
       {currentProject && (
@@ -111,7 +146,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <EnvironmentSelector
               availableEnvironments={currentProject.environments}
               selectedEnvironments={selectedEnvironments}
-              onUpdateEnvironments={onUpdateEnvironments}
+              onUpdateEnvironments={updateSelectedEnvironments}
             />
           </div>
 
@@ -122,23 +157,22 @@ const Sidebar: React.FC<SidebarProps> = ({
             <FlowSelector
               availableFlows={currentProject.flows}
               selectedFlows={selectedFlows}
-              onUpdateFlows={onUpdateFlows}
+              onUpdateFlows={updateSelectedFlows}
             />
           </div>
 
           <div className="mt-auto pt-4 flex flex-col gap-3">
             <div className="flex gap-2">
-              <ActionButtons
-                onRunFlows={onRunFlows}
-                onStopAllCommands={onStopAllCommands}
-                onClearLogs={onClearLogs}
-              />
+              <ActionButtons onRunFlows={handleRunFlows} />
             </div>
           </div>
         </>
       )}
     </div>
   );
-};
+});
+
+// Add display name for debugging
+Sidebar.displayName = "Sidebar";
 
 export default Sidebar;

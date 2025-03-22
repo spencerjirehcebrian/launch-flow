@@ -1,27 +1,18 @@
+// src/renderer/components/LogDisplay/LogDisplay.tsx (Refactored version)
 import React from "react";
-import { CommandResult, DeploymentConfig } from "../../../types";
 import LogTabs from "./LogTabs";
 import LogContent from "./LogContent";
-
-interface LogDisplayProps {
-  commandResults: Map<string, CommandResult>;
-  activeCommandId: string | null;
-  config: DeploymentConfig;
-  onSelectCommand: (commandId: string) => void;
-  onCloseCommandTab: (commandId: string) => void;
-  onClearLogs: () => void; // Still keeping this prop even though button is moved
-}
+import { useCommandStore, useConfigStore } from "../../stores";
 
 /**
- * Component for displaying command logs with tabs
+ * Component for displaying command logs with tabs - now connected directly to stores
  */
-const LogDisplay: React.FC<LogDisplayProps> = ({
-  commandResults,
-  activeCommandId,
-  config,
-  onSelectCommand,
-  onCloseCommandTab,
-}) => {
+const LogDisplay: React.FC = () => {
+  const { commandResults, activeCommandId, selectCommand, closeCommandTab } =
+    useCommandStore();
+
+  const { config } = useConfigStore();
+
   const activeCommand = activeCommandId
     ? commandResults.get(activeCommandId) || null
     : null;
@@ -44,8 +35,8 @@ const LogDisplay: React.FC<LogDisplayProps> = ({
         <LogTabs
           commands={commandArray}
           activeCommandId={activeCommandId}
-          onSelectCommand={onSelectCommand}
-          onCloseCommandTab={onCloseCommandTab}
+          onSelectCommand={selectCommand}
+          onCloseCommandTab={closeCommandTab}
           getFlowName={getFlowName}
         />
 

@@ -1,6 +1,7 @@
+// src/renderer/components/LogDisplay/LogContent.tsx (Updated)
 import React, { useEffect, useRef } from "react";
 import { CommandResult } from "../../../types";
-import { useCommands } from "../../hooks";
+import { useCommandStore } from "../../stores";
 
 interface LogContentProps {
   activeCommand: CommandResult | null;
@@ -10,7 +11,7 @@ interface LogContentProps {
  * Component for displaying command log content
  */
 const LogContent: React.FC<LogContentProps> = ({ activeCommand }) => {
-  const { formatAnsiText } = useCommands();
+  const { formatAnsiText } = useCommandStore();
   const logDisplayRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when logs update
